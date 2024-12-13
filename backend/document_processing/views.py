@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from .utils import AdobeFunc
+from .processing_pipeline import data_pipeline
 from rest_framework.status import HTTP_200_OK, HTTP_204_NO_CONTENT, HTTP_400_BAD_REQUEST
 
 
@@ -14,7 +14,7 @@ class InformationExtractor(APIView):
         try:
             file = request.FILES['uploaded_file']
             if file:
-                output = AdobeFunc().extract_text(file)
+                output = data_pipeline().preprocessed_data(file)
                 return Response({
                     'output': output,
                     'status': HTTP_200_OK
@@ -27,3 +27,4 @@ class InformationExtractor(APIView):
             return Response({
                 'status': HTTP_400_BAD_REQUEST
             })
+
