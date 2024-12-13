@@ -1,18 +1,13 @@
 import os
 import json
-import re
-import emoji
+
 import zipfile
 from datetime import datetime
 from collections import defaultdict
 import logging
+from .preprocessing import preprocess_pipeline
 
-from supporting_docs.slang_dict import abbreviations
 
-import nltk
-from nltk.tokenize import word_tokenize
-from nltk.stem import WordNetLemmatizer
-from nltk.corpus import wordnet, stopwords
 
 from adobe.pdfservices.operation.auth.service_principal_credentials import ServicePrincipalCredentials
 from adobe.pdfservices.operation.pdf_services_media_type import PDFServicesMediaType
@@ -38,7 +33,6 @@ class AdobeFunc:
             client_id="b2d53a9ebdf3457c9935331406ea1dea",
             client_secret="p8e--ujIBIaRR663vvekvOGUYxUp2-f0zeKn"
         )
-
 
     def adobe_process(self, file):
         """
@@ -117,7 +111,7 @@ class AdobeFunc:
             with archive.open('structuredData.json') as json_entry:
                 return json.load(json_entry)
 
-    def extract_information_from_json(self, json_data):
+    def extract_information_from_json(self, json_data=""):
         """
         Process JSON data to extract structured text information.
 
@@ -127,82 +121,106 @@ class AdobeFunc:
         Returns:
             dict: Structured data grouped by sections.
         """
-        structured_data = []
 
-        for element in json_data.get("elements", []):
-            section = (
-                element.get("Path", "").split("/")[2]
-                if "Path" in element and len(element.get("Path", "").split("/")) > 2
-                else "General"
-            )
+        datas = json_data["elements"]
+
+        # Initialize variables
+        header = None
+        sub_header = None
+        value = []
+        structured_data = {}
+
+        combined_empty_sections = []
+        heading_count = 0
+
+        unmatched_texts = []
+
+        for element in datas:
+            path = element.get("Path", "")
             text = element.get("Text", "").strip()
+            text = preprocess_pipeline(text)
+            # Ignore references and footnotes
+            if '/Footnote' in path:
+                continue
 
-            if text:
-                structured_data.append(text)
+            # Handle headers (Title, H1, H2)
+            elif '/Title' in path:
+                # Combine empty sections into HEADING_X if previous sections were empty
+                if not value and combined_empty_sections:
+                    heading_count += 1
+                    combined_title = f"HEADING_{heading_count}"
+                    structured_data[combined_title] = combined_empty_sections
+                    combined_empty_sections = []
 
-        return structured_data
+                # Start a new header
+                header = text
+                sub_header = None
+                if header not in structured_data:
+                    structured_data[header] = []
+
+            elif "/H1" in path or ("/H2" in path and "/Figure" not in path):
+                # print("text: ", text)
+                if value:
+                    # Append accumulated content to the current section
+                    if sub_header:
+                        structured_data[header].append(
+                            {sub_header: " ".join(value)})
+                    else:
+                        structured_data[header].append(" ".join(value))
+                    value = []
+
+                # Update header and sub_header
+                if "/H1" in path:
+                    header = text if text else "Untitled Section"
+                    if header not in structured_data:
+                        structured_data[header] = []
+                    sub_header = None
+                if "/H2" in path:
+                    sub_header = text if text else "Untitled Subsection"
+                    # print("text", text)
+                else:
+                    structured_data[text] = []
+
+            # Handle paragraphs and other text
+            elif text:
+                if header and not structured_data.get(header, []):
+                    # Initialize header with text
+                    structured_data[header] = [text]
+                elif header:
+                    value.append(text)
+                else:
+                    unmatched_texts.append(text)
+
+        # Add the last accumulated data
+        if value or header or sub_header:
+            if header:
+                if sub_header:
+                    if value:
+                        structured_data[header].append(
+                            {sub_header: " ".join(value)})
+                    else:
+                        structured_data[header] = sub_header
+                else:
+                    structured_data[header].append(" ".join(value))
+            value = []
+
+        # Combine remaining empty sections if any
+        if combined_empty_sections:
+            heading_count += 1
+            combined_title = f"HEADING_{heading_count}"
+            structured_data[combined_title] = combined_empty_sections
+
+        # Combine unmatched texts into "Other"
+        combined_key = "Other"
+        combined_data = {combined_key: unmatched_texts}
+
+        for key, value in structured_data.items():
+            if isinstance(value, list) and not value:  # Empty lists
+                combined_data[combined_key].append(key)
+            else:
+                combined_data[key] = value
+
+        return combined_data
 
 
-class Preprocessing:
-    """
-    Pre-Processing
-    - There are lots of things which we have to do to preprocess the text data
-    - Handle Emojis, Slangs, Punctuations, ShortForm
-    - Spelling Corrections
-    - POS Tagging
-    - Handling Pronouns and Special Characters
-    - Tokenize
-    - Lowercase and En-grams
-    """
-    def __init__(self):
-        pass
 
-    def convert_abbrev(self, word):
-        final_word = []
-        for i in word.split(" "):
-            final_word.append(
-                abbreviations[i.lower()] if i.lower() in abbreviations.keys() else i)
-        return " ".join(final_word)
-
-    def remove_urls(self, text):
-        url_pattern = re.compile(r'https?://\S+|www\.\S+')
-        return url_pattern.sub(r'', text)
-
-    def remove_html(self, text):
-        html_pattern = re.compile('<.*?>')
-        return html_pattern.sub(r'', text)
-
-    def remove_unnecessary_digits(self, text):
-        pattern = r'\b\d+\b|(\d{4}-\d{2}-\d{2})|\b\d+\s*(?=\w)'
-
-        # Remove matched patterns
-        cleaned_text = re.sub(pattern, '', text)
-
-        # Remove extra whitespace
-        cleaned_text = re.sub(r'\s+', ' ', cleaned_text).strip()
-
-        return cleaned_text
-
-    def lemmatize_text_nltk(self, text):
-        lemmatizer = WordNetLemmatizer()
-        words = nltk.word_tokenize(text)  # Tokenize the text
-        lemmatized_words = [lemmatizer.lemmatize(word) for word in words]
-        return ' '.join(lemmatized_words)
-
-    def remove_stopwords(self, text):
-        # Get the set of English stopwords
-        stop_words = set(stopwords.words('english'))
-        words = word_tokenize(text)  # Tokenize the text
-        filtered_words = [
-            word for word in words if word.lower() not in stop_words]
-        return ' '.join(filtered_words)
-
-    def cleaning_repeating_char(self, text):
-        return re.sub(r'(.)\1+', r'\1', text)
-
-    def cleaning_username(self, text):
-        return re.sub('@[^\s]+', ' ', text)
-
-    def handle_emoji(self, text):
-        # Handling Emoji's
-        return emoji.demojize(text)
