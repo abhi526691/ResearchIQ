@@ -1,5 +1,7 @@
 import hashlib
+import os
 import chromadb
+from groq import Groq
 from chromadb.config import Settings
 from sentence_transformers import SentenceTransformer
 
@@ -10,8 +12,6 @@ class VectorEmbeddings:
         self.client = chromadb.PersistentClient(path="./backend/database")
         # Load Embedding Model i.e SentenceTransformer
         self.embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
-
-
 
     def flatten_json(self, json_obj, parent_key='', sep='_'):
         """
@@ -88,43 +88,6 @@ class VectorEmbeddings:
               file_hash}")
         return output_data
 
-    # def fetch_document_data_by_content(self, document_content, collection_name="researchIQ"):
-    #     """
-    #     Fetch all data associated with a document UID if the same file is uploaded.
-    #     """
-    #     try:
-    #         # Generate UID for the given document content
-    #         document_uid = self.generate_document_uid(document_content)
-    #         print(f"Generated UID for the document: {document_uid}")
-
-    #         # Load the collection
-    #         collection = self.client.get_collection(name=collection_name)
-
-    #         # Query data using the document UID
-    #         results = collection.query(
-    #             # Filter by document UID in metadata
-    #             where={"document_uid": document_uid}
-    #         )
-
-    #         if results["ids"]:
-    #             print(f"Found {len(results['ids'])} entries for document UID: {
-    #                   document_uid}")
-    #             for idx, doc_id in enumerate(results["ids"]):
-    #                 print(f"UID: {doc_id}")
-    #                 print(f"Content: {results['documents'][idx]}")
-    #                 print(f"Metadata: {results['metadatas'][idx]}")
-    #                 print("-" * 40)
-    #             return results
-    #         else:
-    #             print(f"No data found for document UID: {document_uid}")
-    #             return None
-
-    #     except Exception as e:
-    #         print(f"Error fetching data: {e}")
-    #         return None
-        
-
-
     def retrieve_data(self, file_hash, collection_name="researchIQ"):
         # Load or create collection
         collection = self.client.get_or_create_collection(name=collection_name)
@@ -133,7 +96,7 @@ class VectorEmbeddings:
         results = collection.get(
             where={"document_uid": file_hash},
             include=["documents", "metadatas", "embeddings"]
-            )
+        )
 
         if results and results["ids"]:  # If data exists, return it
             print(f"Document with UID: {
@@ -143,11 +106,108 @@ class VectorEmbeddings:
                 print(f"Content: {results['documents'][idx]}")
                 print(f"Metadata: {results['metadatas'][idx]}")
                 print("-" * 40)
+            results["document_uid"] = file_hash
             return results  # Return all associated entries
-        
         else:
             return False
 
-        # If document does not exist, process and create embeddings
-        print(f"No existing entries found for UID: {
-              file_hash}. Creating embeddings...")
+
+class QnaHelper(VectorEmbeddings):
+    def __init__(self):
+        super().__init__()
+        os.environ["GROQ_API_KEY"] = "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"
+        self.llm = Groq()
+        self.LLAMA3_70B_INSTRUCT = "llama-3.1-70b-versatile"
+        self.LLAMA3_8B_INSTRUCT = "llama3.1-8b-instant"
+        self.DEFAULT_MODEL = self.LLAMA3_70B_INSTRUCT
+
+    def question_embedding(self, question):
+        """Generate embedding for the given question."""
+        return self.embedding_model.encode(
+            question, convert_to_tensor=False
+        ).tolist()
+
+    def retrieve_data(self, question, file_hash, collection_name="researchIQ", top_k=5):
+        """Retrieve top_k relevant data based on the file_hash and return query and prompt as a dictionary."""
+        # Load or create collection
+        collection = self.client.get_or_create_collection(name=collection_name)
+
+        # Fetch all entries matching the document UID
+        results = collection.get(
+            where={"document_uid": file_hash},
+            include=["documents", "metadatas", "embeddings"]
+        )
+
+        if results and results["ids"]:  # If data exists, rank and return top_k
+            print(f"Document with UID: {file_hash} found. Returning top {
+                  top_k} associated data...")
+
+            # Combine embeddings and documents to calculate relevance scores
+            question_emb = self.question_embedding(question)
+            scored_results = []
+
+            for idx, embedding in enumerate(results["embeddings"]):
+                score = self.calculate_similarity(question_emb, embedding)
+                scored_results.append((score, results['documents'][idx]))
+
+            # Sort by scores in descending order and retrieve top_k
+            scored_results = sorted(
+                scored_results, key=lambda x: x[0], reverse=True)[:top_k]
+            top_documents = [doc for _, doc in scored_results]
+
+            # Combine top_k document data into a single string
+            prompt = " ".join(top_documents)
+
+            # Create and return the dictionary
+            return {"prompt": prompt}
+        else:
+            print(f"No data found for UID: {file_hash}")
+            return None
+
+    def generate_response(self, question, file_hash, collection_name="researchIQ", top_k=5):
+        """Generate a response for the given question using the top_k relevant content from file_hash."""
+        # Retrieve data
+        data = self.retrieve_data(question, file_hash, collection_name, top_k)
+
+        if not data:
+            return None
+
+        prompt = data["prompt"]
+
+        # Combine prompt and question into a single role
+        combined_prompt = f"""{prompt}
+        Q: {question}
+        A:"""
+
+        # Generate response
+        try:
+            response = self.llm.chat.completions.create(
+                messages=[{"role": "user", "content": combined_prompt}],
+                model=self.DEFAULT_MODEL,
+                temperature=0.6,
+                top_p=0.9,
+            )
+
+            return {
+                'output': response,
+                'response': response.choices[0].message.content,
+                'prompt': prompt
+            }
+        except Exception as e:
+            print(f"Error generating response: {e}")
+            return None
+
+        return {
+            'response': response.choices[0].message.content,
+            'prompt': prompt
+        }
+        # except Exception as e:
+        #     print(f"Error generating response: {e}")
+        #     return None
+
+    def calculate_similarity(self, query_emb, doc_emb):
+        """Calculate cosine similarity between query and document embeddings."""
+        import numpy as np
+        query_emb = np.array(query_emb)
+        doc_emb = np.array(doc_emb)
+        return np.dot(query_emb, doc_emb) / (np.linalg.norm(query_emb) * np.linalg.norm(doc_emb))

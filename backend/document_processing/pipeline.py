@@ -38,3 +38,6 @@ class data_pipeline:
         # return VectorEmbeddings().fetch_document_data_by_content(file)
 
         return embeddings.embedding_creation(text_list, file_hash)
+    
+
+
