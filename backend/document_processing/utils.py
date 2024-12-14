@@ -8,7 +8,6 @@ import logging
 from .preprocessing import preprocess_pipeline
 
 
-
 from adobe.pdfservices.operation.auth.service_principal_credentials import ServicePrincipalCredentials
 from adobe.pdfservices.operation.pdf_services_media_type import PDFServicesMediaType
 from adobe.pdfservices.operation.io.cloud_asset import CloudAsset
@@ -46,7 +45,7 @@ class AdobeFunc:
         """
         try:
             input_stream = file.read()
-            file.close()
+            # file.close()
 
             pdf_services = PDFServices(credentials=self.credentials)
 
@@ -221,6 +220,3 @@ class AdobeFunc:
                 combined_data[key] = value
 
         return combined_data
-
-
-
