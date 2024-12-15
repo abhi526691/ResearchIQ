@@ -3,6 +3,8 @@ import os
 import chromadb
 from groq import Groq
 from chromadb.config import Settings
+import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
 from sentence_transformers import SentenceTransformer
 
 
@@ -159,7 +161,7 @@ class QnaHelper(VectorEmbeddings):
             prompt = " ".join(top_documents)
 
             # Create and return the dictionary
-            return {"prompt": prompt}
+            return {"prompt": prompt, 'scored_results': scored_results, 'top_document': top_documents}
         else:
             print(f"No data found for UID: {file_hash}")
             return None
@@ -173,6 +175,8 @@ class QnaHelper(VectorEmbeddings):
             return None
 
         prompt = data["prompt"]
+        scored_result = data["scored_results"]
+        top_document = data["top_document"]
 
         # Combine prompt and question into a single role
         combined_prompt = f"""{prompt}
@@ -189,25 +193,26 @@ class QnaHelper(VectorEmbeddings):
             )
 
             return {
-                'output': response,
-                'response': response.choices[0].message.content,
-                'prompt': prompt
+                'output': response.choices[0].message.content,
+                'prompt': prompt,
+                'scored_result': scored_result,
+                'top_document': top_document
             }
         except Exception as e:
             print(f"Error generating response: {e}")
             return None
 
-        return {
-            'response': response.choices[0].message.content,
-            'prompt': prompt
-        }
-        # except Exception as e:
-        #     print(f"Error generating response: {e}")
-        #     return None
-
     def calculate_similarity(self, query_emb, doc_emb):
         """Calculate cosine similarity between query and document embeddings."""
-        import numpy as np
+        # Ensure inputs are NumPy arrays
         query_emb = np.array(query_emb)
         doc_emb = np.array(doc_emb)
-        return np.dot(query_emb, doc_emb) / (np.linalg.norm(query_emb) * np.linalg.norm(doc_emb))
+
+        # Reshape to 2D arrays if needed
+        query_emb = query_emb.reshape(
+            1, -1) if query_emb.ndim == 1 else query_emb
+        doc_emb = doc_emb.reshape(1, -1) if doc_emb.ndim == 1 else doc_emb
+
+        # Compute cosine similarity
+        # Extract scalar similarity value
+        return cosine_similarity(query_emb, doc_emb)[0][0]
