@@ -11,29 +11,37 @@ from sentence_transformers import SentenceTransformer
 class VectorEmbeddings:
 
     def __init__(self):
-        self.client = chromadb.PersistentClient(path="./backend/database")
+        self.client = chromadb.PersistentClient(path="database")
         # Load Embedding Model i.e SentenceTransformer
         self.embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
 
-    def flatten_json(self, json_obj, parent_key='', sep='_'):
+    def flatten_values_to_string(self, data):
         """
-        Flatten nested JSON into a single-level dictionary.
+        Convert all values in a dictionary (including nested structures) into a single flattened string.
+
+        Parameters:
+        - data (dict): The input dictionary with possibly nested or multiple items.
+
+        Returns:
+        - dict: A dictionary where values are flattened into strings.
         """
-        items = []
-        for k, v in json_obj.items():
-            new_key = f"{parent_key}{sep}{k}" if parent_key else k
-            if isinstance(v, dict):
-                items.extend(self.flatten_json(v, new_key, sep=sep).items())
-            elif isinstance(v, list):
-                for i, item in enumerate(v):
-                    if isinstance(item, dict):
-                        items.extend(self.flatten_json(
-                            item, f"{new_key}_{i}", sep=sep).items())
-                    else:
-                        items.append((f"{new_key}_{i}", item))
+        result = {}
+
+        def process_value(value):
+            if isinstance(value, dict):
+                # Convert dictionary to a single string by joining key-value pairs
+                return "; ".join(f"{k}: {process_value(v)}" for k, v in value.items())
+            elif isinstance(value, list):
+                # Convert list to a single string by joining items
+                return ", ".join(process_value(v) for v in value)
             else:
-                items.append((new_key, v))
-        return dict(items)
+                # Return the value as a string
+                return str(value)
+
+        for key, value in data.items():
+            result[key] = process_value(value)
+
+        return result
 
     def generate_uid_for_document(self, content):
         """
@@ -54,7 +62,7 @@ class VectorEmbeddings:
         collection = self.client.get_or_create_collection(name=collection_name)
 
         # Flatten the JSON structure
-        flat_data = self.flatten_json(contents)
+        flat_data = self.flatten_values_to_string(contents)
         output_data = {}
         output_data['document_uid'] = file_hash
 
