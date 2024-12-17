@@ -187,7 +187,10 @@ class QnaHelper(VectorEmbeddings):
         top_document = data["top_document"]
 
         # Combine prompt and question into a single role
-        combined_prompt = f"""{prompt}
+        combined_prompt = f"""
+            You are an AI assistant that answers questions based only on the following documents.
+            Do not use any external information.Return Irrelevant Information.
+            {prompt}
         Q: {question}
         A:"""
 
@@ -224,3 +227,51 @@ class QnaHelper(VectorEmbeddings):
         # Compute cosine similarity
         # Extract scalar similarity value
         return cosine_similarity(query_emb, doc_emb)[0][0]
+
+
+class summmarizerHelper(QnaHelper):
+    def __init__(self, document_uid):
+        super().__init__()
+        self.document_uid = document_uid
+
+    def retrieve_data(self, collection_name="researchIQ"):
+        """Retrieve top_k relevant data based on the file_hash and return query and prompt as a dictionary."""
+        # Load or create collection
+        collection = self.client.get_or_create_collection(name=collection_name)
+
+        # Fetch all entries matching the document UID
+        results = collection.get(
+            where={"document_uid": self.document_uid},
+            include=["documents", "metadatas", "embeddings"]
+        )
+        return " ".join(results["documents"])
+
+    def generate_response(self):
+
+        prompt = self.retrieve_data()
+        combined_prompt = f"""
+        You are an AI assistant specialized in creating concise and accurate summaries based exclusively on
+        the provided documents. Do not use any external information or personal knowledge beyond what is given below.
+        {prompt}
+        ### Task:
+        Please provide a comprehensive summary of the above documents.
+        Ensure that the summary captures all key points, main ideas, and essential details without introducing any information not present in the documents.
+        Strictly limit the summary under 300 words
+
+        ### Summary:
+        """
+        try:
+            response = self.llm.chat.completions.create(
+                messages=[{"role": "user", "content": combined_prompt}],
+                model=self.DEFAULT_MODEL,
+                temperature=0.6,
+                top_p=0.9,
+            )
+
+            return {
+                'output': response.choices[0].message.content,
+                'prompt': prompt,
+            }
+        except Exception as e:
+            print(f"Error generating response: {e}")
+            return None
