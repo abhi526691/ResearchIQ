@@ -7,16 +7,10 @@ from rest_framework.status import HTTP_200_OK, HTTP_204_NO_CONTENT, HTTP_400_BAD
 
 
 class InformationExtractor(APIView):
-
-    def __init__(self):
-        pass
-
     def post(self, request):
-        # try:
-        file = request.FILES['uploaded_file']
-        if file:
+        file = request.FILES.get('uploaded_file')
+        if file and file.name.endswith('.pdf'):
             output = data_pipeline().text_extraction_pipeline(file)
-            # print(output['document_uid'])
             return Response({
                 'output': output,
                 'document_uid': output['document_uid'],
@@ -24,12 +18,9 @@ class InformationExtractor(APIView):
             })
         else:
             return Response({
-                'status': HTTP_204_NO_CONTENT
+                'status': HTTP_204_NO_CONTENT,
+                'error': 'Uploaded file is not a PDF.'
             })
-        # except:
-        #     return Response({
-        #         'status': HTTP_400_BAD_REQUEST
-        #     })
 
 
 class QnAView(APIView):

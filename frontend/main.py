@@ -1,6 +1,7 @@
 import streamlit as st
 import requests
-from PIL import Image
+import fitz  # PyMuPDF
+from io import BytesIO
 
 # Define the API endpoints
 EXTRACTOR_API_URL = "http://127.0.0.1:8000/document_processing/file/"
@@ -11,66 +12,137 @@ SUMMARIZER_API_URL = "http://127.0.0.1:8000/document_processing/summary/"
 st.set_page_config(page_title="PDF Assistant", layout="wide")
 st.title("PDF Assistant")
 
-# Upload PDF
-uploaded_file = st.file_uploader("Upload a PDF", type="pdf")
+# Function to display PDF using PyMuPDF
+
+
+def display_pdf(file):
+    pdf_document = fitz.open(stream=file.read(), filetype="pdf")
+    num_pages = pdf_document.page_count
+    st.write(f"Total pages: {num_pages}")
+    for page_num in range(num_pages):
+        page = pdf_document.load_page(page_num)
+        pix = page.get_pixmap()
+        img = pix.tobytes("png")
+        st.image(img, caption=f"Page {page_num + 1}")
+
+
+# Initialize session state for chat history and document_uid
+if 'chat_history' not in st.session_state:
+    st.session_state.chat_history = []
+
+if 'document_uid' not in st.session_state:
+    st.session_state.document_uid = None
+
+if 'selected_tab' not in st.session_state:
+    st.session_state.selected_tab = 'Q&A'  # Default tab
+
+# Sidebar for PDF upload
+st.sidebar.header("Upload PDF")
+uploaded_file = st.sidebar.file_uploader("Choose a PDF file", type="pdf")
 
 if uploaded_file:
     # Display the uploaded PDF
     st.subheader("Uploaded PDF:")
-    pdf_viewer, options_view = st.columns([3, 1])
+    pdf_viewer, chat_input = st.columns(
+        [1.5, 2.5])  # Adjusted column proportions
 
     # Show the PDF on the left
     with pdf_viewer:
-        st.write("Displaying the PDF...")
-        st.download_button(
+        display_pdf(uploaded_file)
+        st.sidebar.download_button(
             "Download PDF",
             data=uploaded_file.read(),
             file_name=uploaded_file.name,
             mime="application/pdf"
         )
 
-    # Show options for QnA or Summarizer on the right
-    with options_view:
-        st.subheader("Options")
+    # Upload PDF to extractor API
+    with st.spinner("Processing the PDF..."):
+        uploaded_file.seek(0)  # Reset file pointer to the beginning
+        files = {
+            "uploaded_file": (uploaded_file.name, uploaded_file, "application/pdf")
+        }
+        response = requests.post(EXTRACTOR_API_URL, files=files)
+    if response.status_code == 200:
+        st.session_state.document_uid = response.json().get("document_uid")
+        st.success("PDF processed successfully.")
+    else:
+        st.error("Failed to process the PDF.")
 
-        # Upload PDF to extractor API
-        with st.spinner("Processing the PDF..."):
-            response = requests.post(EXTRACTOR_API_URL, files={
-                                     "uploaded_file": uploaded_file})
-        print("response", response)
-        if response.status_code == 200:
-            document_uid = response.json().get("document_uid")
-            st.success("PDF processed successfully.")
-        else:
-            st.error("Failed to process the PDF.")
+    # Chat section with navigation options (Q&A and Summary)
+    with chat_input:
+        # Create the navigation buttons for Q&A and Summary
+        tab_button1, tab_button2 = st.columns([1, 1])
 
-        # Options for QnA or Summarizer
-        option = st.radio("Select an action:", ["QnA", "Summarizer"])
+        with tab_button1:
+            if st.button('Q&A', key='qna'):
+                # Clear chat history when switching to Q&A
+                st.session_state.selected_tab = 'Q&A'
+                st.session_state.chat_history = []  # Clear chat history
 
-        if option == "QnA":
+        with tab_button2:
+            if st.button('Summary', key='summary'):
+                # Clear chat history when switching to Summary
+                st.session_state.selected_tab = 'Summary'
+                st.session_state.chat_history = []  # Clear chat history
+
+        # Display chat history
+        st.subheader("Chat History")
+        for user_msg, bot_msg in st.session_state.chat_history:
+            st.markdown(f"""
+            <div style='text-align: left; margin: 10px;'>
+                <p style='background-color: #f0f0f0; padding: 10px; border-radius: 10px;'>
+                <strong>{user_msg}</strong></p>
+            </div>
+            <div style='text-align: left; margin: 10px;'>
+                <p style='background-color: #e0f7fa; padding: 10px; border-radius: 10px;'>
+                <strong>{bot_msg}</strong></p>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # Q&A Section: Takes a question input
+        if st.session_state.selected_tab == 'Q&A':
             st.subheader("Ask a Question")
             question = st.text_input("Enter your question:")
+
             if st.button("Submit Question"):
                 if question:
-                    with st.spinner("Fetching answer..."):
-                        qna_response = requests.post(
-                            QNA_API_URL, data={"document_uid": document_uid, "question": question})
-                    if qna_response.status_code == 200:
-                        answer = qna_response.json().get("output")
-                        st.success(f"Answer: {answer}")
+                    if st.session_state.document_uid:
+                        with st.spinner("Fetching answer..."):
+                            qna_response = requests.post(
+                                QNA_API_URL, data={"document_uid": st.session_state.document_uid, "question": question})
+                        if qna_response.status_code == 200:
+                            answer = qna_response.json().get("output")[
+                                "output"]
+                            st.session_state.chat_history.append(
+                                ("User: " + question, "Bot: " + answer))
+                            st.rerun()  # Refresh the app to display the new message
+                        else:
+                            st.error("Failed to fetch the answer.")
                     else:
-                        st.error("Failed to fetch the answer.")
+                        st.warning("Please upload a PDF file first.")
                 else:
                     st.warning("Please enter a question.")
 
-        elif option == "Summarizer":
-            st.subheader("Summary")
-            if st.button("Get Summary"):
-                with st.spinner("Generating summary..."):
-                    summary_response = requests.post(SUMMARIZER_API_URL, data={
-                                                     "document_uid": document_uid})
-                if summary_response.status_code == 200:
-                    summary = summary_response.json().get("output")
-                    st.success(f"Summary: {summary}")
-                else:
-                    st.error("Failed to generate summary.")
+        # Summary Section: Calls the API without a question input
+        elif st.session_state.selected_tab == 'Summary':
+            st.subheader("Generate Summary")
+            if st.session_state.document_uid:
+                st.write(f"Document ID: {st.session_state.document_uid}")
+                if st.button("Generate Summary"):
+                    with st.spinner("Generating summary..."):
+                        summary_response = requests.post(SUMMARIZER_API_URL, data={
+                                                         "document_uid": st.session_state.document_uid})
+                    if summary_response.status_code == 200:
+                        summary = summary_response.json().get("output")[
+                            "output"]
+                        st.session_state.chat_history.append(
+                            ("User: Generate Summary", "Bot: " + summary))
+                        st.rerun()  # Refresh the app to display the new message
+                    else:
+                        st.error("Failed to generate summary.")
+            else:
+                st.warning("Please upload a PDF file to generate the summary.")
+
+else:
+    st.warning("Please upload a PDF file to proceed.")

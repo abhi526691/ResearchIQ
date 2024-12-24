@@ -189,7 +189,7 @@ class QnaHelper(VectorEmbeddings):
         # Combine prompt and question into a single role
         combined_prompt = f"""
             You are an AI assistant that answers questions based only on the following documents.
-            Do not use any external information.Return Irrelevant Information.
+            Do not use any external information and do not return Irrelevant Information.
             {prompt}
         Q: {question}
         A:"""
@@ -256,7 +256,7 @@ class summmarizerHelper(QnaHelper):
         ### Task:
         Please provide a comprehensive summary of the above documents.
         Ensure that the summary captures all key points, main ideas, and essential details without introducing any information not present in the documents.
-        Strictly limit the summary under 300 words
+        Strictly limit the summary under 150 words and a single paragraph.
 
         ### Summary:
         """
@@ -264,7 +264,7 @@ class summmarizerHelper(QnaHelper):
             response = self.llm.chat.completions.create(
                 messages=[{"role": "user", "content": combined_prompt}],
                 model=self.DEFAULT_MODEL,
-                temperature=0.6,
+                temperature=0.8,
                 top_p=0.9,
             )
 
