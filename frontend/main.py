@@ -1,148 +1,106 @@
 import streamlit as st
-import requests
-import fitz  # PyMuPDF
-from io import BytesIO
-
-# Define the API endpoints
-EXTRACTOR_API_URL = "http://127.0.0.1:8000/document_processing/file/"
-QNA_API_URL = "http://127.0.0.1:8000/document_processing/qna/"
-SUMMARIZER_API_URL = "http://127.0.0.1:8000/document_processing/summary/"
-
-# Streamlit UI
-st.set_page_config(page_title="PDF Assistant", layout="wide")
-st.title("PDF Assistant")
-
-# Function to display PDF using PyMuPDF
+from utils import HelperFunction
 
 
-def display_pdf(file):
-    pdf_document = fitz.open(stream=file.read(), filetype="pdf")
-    num_pages = pdf_document.page_count
-    st.write(f"Total pages: {num_pages}")
-    for page_num in range(num_pages):
-        page = pdf_document.load_page(page_num)
-        pix = page.get_pixmap()
-        img = pix.tobytes("png")
-        st.image(img, caption=f"Page {page_num + 1}")
+class Frontend(HelperFunction):
 
+    def __init__(self):
+        # Set the page title and layout
+        st.set_page_config(page_title="ResearchIQ", layout="wide")
+        st.title("PDF Assistant")
 
-# Initialize session state for chat history and document_uid
-if 'chat_history' not in st.session_state:
-    st.session_state.chat_history = []
+        super().__init__()
+        # Initialize session state for chat history, document_uid, page, and processed state
+        if 'chat_history' not in st.session_state:
+            st.session_state.chat_history = []
 
-if 'document_uid' not in st.session_state:
-    st.session_state.document_uid = None
+        if 'document_uid' not in st.session_state:
+            st.session_state.document_uid = None
 
-if 'selected_tab' not in st.session_state:
-    st.session_state.selected_tab = 'Q&A'  # Default tab
+        if 'selected_tab' not in st.session_state:
+            st.session_state.selected_tab = 'Q&A'  # Default tab
 
-# Sidebar for PDF upload
-st.sidebar.header("Upload PDF")
-uploaded_file = st.sidebar.file_uploader("Choose a PDF file", type="pdf")
+        if 'processed' not in st.session_state:
+            st.session_state.processed = False  # Track if the file is processed
 
-if uploaded_file:
-    # Display the uploaded PDF
-    st.subheader("Uploaded PDF:")
-    pdf_viewer, chat_input = st.columns(
-        [1.5, 2.5])  # Adjusted column proportions
+        if 'show_uploaded_page' not in st.session_state:
+            # Flag to control whether to show the upload page
+            st.session_state.show_uploaded_page = True
 
-    # Show the PDF on the left
-    with pdf_viewer:
-        display_pdf(uploaded_file)
-        st.sidebar.download_button(
-            "Download PDF",
-            data=uploaded_file.read(),
-            file_name=uploaded_file.name,
-            mime="application/pdf"
-        )
+        if 'uploaded_file' not in st.session_state:
+            st.session_state.uploaded_file = None  # Initialize uploaded file
 
-    # Upload PDF to extractor API
-    with st.spinner("Processing the PDF..."):
-        uploaded_file.seek(0)  # Reset file pointer to the beginning
-        files = {
-            "uploaded_file": (uploaded_file.name, uploaded_file, "application/pdf")
-        }
-        response = requests.post(EXTRACTOR_API_URL, files=files)
-    if response.status_code == 200:
-        st.session_state.document_uid = response.json().get("document_uid")
-        st.success("PDF processed successfully.")
-    else:
-        st.error("Failed to process the PDF.")
+    def qna(self):
+        # Clear chat history when switching to Q&A
+        st.session_state.selected_tab = 'Q&A'
+        st.session_state.chat_history = []  # Clear chat history
 
-    # Chat section with navigation options (Q&A and Summary)
-    with chat_input:
-        # Create the navigation buttons for Q&A and Summary
-        tab_button1, tab_button2 = st.columns([1, 1])
+    def summary(self):
+        # Clear chat history when switching to Summary
+        st.session_state.selected_tab = 'Summary'
+        st.session_state.chat_history = []  # Clear chat history
 
-        with tab_button1:
-            if st.button('Q&A', key='qna'):
-                # Clear chat history when switching to Q&A
-                st.session_state.selected_tab = 'Q&A'
-                st.session_state.chat_history = []  # Clear chat history
+    def driver(self):
+        uploaded_file = st.session_state.uploaded_file  # Get the file from session state
+        if st.session_state.processed:
+            # Once the PDF is processed, load the Q&A and Summary tabs
+            qna, summarizer = st.tabs(["Q&A", "Summarizer"])
+            with qna:
+                self.qna()
+                pdf_viewer, QnA = st.columns([1, 1])
+                with pdf_viewer:
+                    self.pdf_viewer(uploaded_file)
+                with QnA:
+                    # Display chat history
+                    self.display_chat_history(st.session_state.chat_history)
+                    self.qa_helper()
 
-        with tab_button2:
-            if st.button('Summary', key='summary'):
-                # Clear chat history when switching to Summary
-                st.session_state.selected_tab = 'Summary'
-                st.session_state.chat_history = []  # Clear chat history
+            with summarizer:
+                self.summary()
+                pdf_viewer, summary = st.columns([1, 1])
+                with pdf_viewer:
+                    self.pdf_viewer(uploaded_file)
+                with summary:
+                    # Display chat history
+                    self.display_chat_history(st.session_state.chat_history)
+                    self.summary_helper()
 
-        # Display chat history
-        st.subheader("Chat History")
-        for user_msg, bot_msg in st.session_state.chat_history:
-            st.markdown(f"""
-            <div style='text-align: left; margin: 10px;'>
-                <p style='background-color: #f0f0f0; padding: 10px; border-radius: 10px;'>
-                <strong>{user_msg}</strong></p>
-            </div>
-            <div style='text-align: left; margin: 10px;'>
-                <p style='background-color: #e0f7fa; padding: 10px; border-radius: 10px;'>
-                <strong>{bot_msg}</strong></p>
-            </div>
-            """, unsafe_allow_html=True)
+            # # Q&A Section: Takes a question input
+            # if st.session_state.selected_tab == 'Q&A':
+            #     self.qa_helper()
 
-        # Q&A Section: Takes a question input
-        if st.session_state.selected_tab == 'Q&A':
-            st.subheader("Ask a Question")
-            question = st.text_input("Enter your question:")
+            # # Summary Section: Calls the API without a question input
+            # elif st.session_state.selected_tab == 'Summary':
+            #     self.summary_helper()
 
-            if st.button("Submit Question"):
-                if question:
-                    if st.session_state.document_uid:
-                        with st.spinner("Fetching answer..."):
-                            qna_response = requests.post(
-                                QNA_API_URL, data={"document_uid": st.session_state.document_uid, "question": question})
-                        if qna_response.status_code == 200:
-                            answer = qna_response.json().get("output")[
-                                "output"]
-                            st.session_state.chat_history.append(
-                                ("User: " + question, "Bot: " + answer))
-                            st.rerun()  # Refresh the app to display the new message
-                        else:
-                            st.error("Failed to fetch the answer.")
-                    else:
-                        st.warning("Please upload a PDF file first.")
+    def main(self):
+        # Inject the CSS into the Streamlit app
+        st.markdown(self.central_content_css(), unsafe_allow_html=True)
+
+        # Title of the app
+        st.title("Document Upload")
+
+        if st.session_state.show_uploaded_page:
+            # Centered file uploader with larger size
+            uploaded_file = st.file_uploader(
+                "Upload your file here!", type=["pdf", "docx", "txt"])
+
+            # Display uploaded file information
+            if uploaded_file is not None:
+                st.write("File uploaded successfully!")
+                if self.process_file(uploaded_file):
+                    # Save the uploaded file to session state
+                    st.session_state.uploaded_file = uploaded_file
+                    st.session_state.processed = True  # Mark PDF as processed
+                    st.session_state.show_uploaded_page = False  # Hide the upload page
+                    st.rerun()  # Trigger rerun to load the new page after file is processed
                 else:
-                    st.warning("Please enter a question.")
-
-        # Summary Section: Calls the API without a question input
-        elif st.session_state.selected_tab == 'Summary':
-            st.subheader("Generate Summary")
-            if st.session_state.document_uid:
-                st.write(f"Document ID: {st.session_state.document_uid}")
-                if st.button("Generate Summary"):
-                    with st.spinner("Generating summary..."):
-                        summary_response = requests.post(SUMMARIZER_API_URL, data={
-                                                         "document_uid": st.session_state.document_uid})
-                    if summary_response.status_code == 200:
-                        summary = summary_response.json().get("output")[
-                            "output"]
-                        st.session_state.chat_history.append(
-                            ("User: Generate Summary", "Bot: " + summary))
-                        st.rerun()  # Refresh the app to display the new message
-                    else:
-                        st.error("Failed to generate summary.")
+                    st.error("Unable to Process the file")
             else:
-                st.warning("Please upload a PDF file to generate the summary.")
+                st.write("No file uploaded yet.")
+        else:
+            # If the file is processed, show the Q&A or Summarizer tab page
+            self.driver()
 
-else:
-    st.warning("Please upload a PDF file to proceed.")
+
+Frontend().main()
