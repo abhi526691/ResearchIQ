@@ -7,7 +7,7 @@ class Frontend(HelperFunction):
     def __init__(self):
         # Set the page title and layout
         st.set_page_config(page_title="ResearchIQ", layout="wide")
-        st.title("PDF Assistant")
+        # st.title("PDF Assistant")
 
         super().__init__()
         # Initialize session state for chat history, document_uid, page, and processed state
@@ -30,14 +30,14 @@ class Frontend(HelperFunction):
         if 'uploaded_file' not in st.session_state:
             st.session_state.uploaded_file = None  # Initialize uploaded file
 
-    def qna(self):
-        # Clear chat history when switching to Q&A
-        st.session_state.selected_tab = 'Q&A'
-        st.session_state.chat_history = []  # Clear chat history
+    # def qna(self):
+    #     # Clear chat history when switching to Q&A
+    #     st.session_state.selected_tab = 'Q&A'
+    #     st.session_state.chat_history = []  # Clear chat history
 
-    def summary(self):
+    def clear_session(self):
         # Clear chat history when switching to Summary
-        st.session_state.selected_tab = 'Summary'
+        # st.session_state.selected_tab = 'Summary'
         st.session_state.chat_history = []  # Clear chat history
 
     def driver(self):
@@ -45,8 +45,8 @@ class Frontend(HelperFunction):
         if st.session_state.processed:
             # Once the PDF is processed, load the Q&A and Summary tabs
             qna, summarizer = st.tabs(["Q&A", "Summarizer"])
+
             with qna:
-                self.qna()
                 pdf_viewer, QnA = st.columns([1, 1])
                 with pdf_viewer:
                     self.pdf_viewer(uploaded_file)
@@ -56,22 +56,14 @@ class Frontend(HelperFunction):
                     self.qa_helper()
 
             with summarizer:
-                self.summary()
                 pdf_viewer, summary = st.columns([1, 1])
                 with pdf_viewer:
                     self.pdf_viewer(uploaded_file)
                 with summary:
                     # Display chat history
-                    self.display_chat_history(st.session_state.chat_history)
                     self.summary_helper()
+                # self.qna()
 
-            # # Q&A Section: Takes a question input
-            # if st.session_state.selected_tab == 'Q&A':
-            #     self.qa_helper()
-
-            # # Summary Section: Calls the API without a question input
-            # elif st.session_state.selected_tab == 'Summary':
-            #     self.summary_helper()
 
     def main(self):
         # Inject the CSS into the Streamlit app

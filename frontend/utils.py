@@ -112,20 +112,33 @@ class HelperFunction:
     def summary_helper(self):
         st.subheader("Generate Summary")
         if st.session_state.document_uid:
-            st.write(f"Document ID: {st.session_state.document_uid}")
+            # st.write(f"Document ID: {st.session_state.document_uid}")
             if st.button("Generate Summary"):
                 with st.spinner("Generating summary..."):
                     summary_response = requests.post(SUMMARIZER_API_URL, data={
                         "document_uid": st.session_state.document_uid})
                 if summary_response.status_code == 200:
                     summary = summary_response.json().get("output")["output"]
-                    st.session_state.chat_history.append(
-                        ("User: Generate Summary", "Bot: " + summary))
-                    st.rerun()  # Refresh the app to display the new message
+                    st.session_state.chat_history = []
+
+                    self.display_summary_chat(summary)
+                    # st.rerun()  # Refresh the app to display the new message
                 else:
                     st.error("Failed to generate summary.")
         else:
             st.warning("Please upload a PDF file to generate the summary.")
+
+    def display_summary_chat(self, summary):
+        st.markdown(f"""
+        <div style='text-align: left; margin: 10px;'>
+            <p style='background-color: #f0f0f0; padding: 10px; border-radius: 10px;'>
+            <strong>{"Generated Summary"}</strong></p>
+        </div>
+        <div style='text-align: left; margin: 10px;'>
+            <p style='background-color: #e0f7fa; padding: 10px; border-radius: 10px;'>
+            <strong>{summary}</strong></p>
+        </div>
+        """, unsafe_allow_html=True)
 
     def display_chat_history(self, chat_history):
         st.subheader("Chat History")
