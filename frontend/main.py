@@ -30,11 +30,6 @@ class Frontend(HelperFunction):
         if 'uploaded_file' not in st.session_state:
             st.session_state.uploaded_file = None  # Initialize uploaded file
 
-    # def qna(self):
-    #     # Clear chat history when switching to Q&A
-    #     st.session_state.selected_tab = 'Q&A'
-    #     st.session_state.chat_history = []  # Clear chat history
-
     def clear_session(self):
         # Clear chat history when switching to Summary
         # st.session_state.selected_tab = 'Summary'
@@ -51,26 +46,23 @@ class Frontend(HelperFunction):
                 with pdf_viewer:
                     self.pdf_viewer(uploaded_file)
                 with QnA:
-                    # Display chat history
-                    self.display_chat_history(st.session_state.chat_history)
-                    self.qa_helper()
+                    # Apply CSS for QnA section to have fixed input at the bottom
+                    self.qa_section_with_fixed_input()
 
             with summarizer:
                 pdf_viewer, summary = st.columns([1, 1])
                 with pdf_viewer:
                     self.pdf_viewer(uploaded_file)
                 with summary:
-                    # Display chat history
+                    # Display chat history for summarizer
                     self.summary_helper()
-                # self.qna()
-
 
     def main(self):
         # Inject the CSS into the Streamlit app
-        st.markdown(self.central_content_css(), unsafe_allow_html=True)
+        # st.markdown(self.central_content_css(), unsafe_allow_html=True)
 
         # Title of the app
-        st.title("Document Upload")
+        st.title("Research IQ")
 
         if st.session_state.show_uploaded_page:
             # Centered file uploader with larger size

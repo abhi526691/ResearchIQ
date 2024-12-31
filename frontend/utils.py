@@ -1,4 +1,5 @@
 import os
+import base64
 import fitz
 import requests
 import streamlit as st
@@ -83,13 +84,76 @@ class HelperFunction:
             st.error("Failed to process the PDF.")
             return False
 
-    def pdf_viewer(self, uploaded_file):
-        self.display_pdf(uploaded_file)
+    # def pdf_viewer(self, uploaded_file):
+    #     # self.display_pdf(uploaded_file)
+    #     # def pdf_viewer(self, uploaded_file):
+    #     if uploaded_file:
+    #         # Display the PDF using an iframe
+    #         base64_pdf = base64.b64encode(uploaded_file.read()).decode('utf-8')
+    #         pdf_display = f'<iframe src="data:application/pdf;base64,{
+    #             base64_pdf}" width="700" height="1000" type="application/pdf"></iframe>'
+    #         st.markdown(pdf_display, unsafe_allow_html=True)
         # self.download_pdf(uploaded_file, key_suffix="viewer")
+
+    def pdf_viewer(self, uploaded_file):
+        uploaded_file.seek(0)
+
+        base64_pdf = base64.b64encode(
+            uploaded_file.read()).decode('utf-8')
+        print("base64_pdf", base64_pdf)
+        # Embedding PDF in HTML
+        pdf_display = F'<iframe src="data:application/pdf;base64,{
+            base64_pdf}" width="700" height="1000" type="application/pdf">'
+
+        # Displaying File
+        st.markdown(pdf_display, unsafe_allow_html=True)
+
+    def qa_section_with_fixed_input(self):
+        # Display chat history in the Q&A section
+        self.display_chat_history(st.session_state.chat_history)
+
+        # Ask the user to enter a question
+        question = st.text_input("Enter your question:", key="question_input")
+
+        if st.button("Submit Question"):
+            if question:
+                if st.session_state.document_uid:
+                    with st.spinner("Fetching answer..."):
+                        qna_response = requests.post(
+                            QNA_API_URL, data={"document_uid": st.session_state.document_uid, "question": question})
+                    if qna_response.status_code == 200:
+                        answer = qna_response.json().get("output")["output"]
+                        st.session_state.chat_history.append(
+                            ("User: " + question, "Bot: " + answer))
+                        st.rerun()  # Refresh the app to display the new message
+                    else:
+                        st.error("Failed to fetch the answer.")
+                else:
+                    st.warning("Please upload a PDF file first.")
+            else:
+                st.warning("Please enter a question.")
 
     def qa_helper(self):
         st.subheader("Ask a Question")
-        question = st.text_input("Enter your question:")
+        # Ask the user to enter a question
+        question = st.text_input("Enter your question:", key="question_input")
+
+        # Add some CSS to make the text input fixed at the bottom
+        st.markdown("""
+            <style>
+                .stTextInput {
+                    position: fixed;
+                    bottom: 20px;
+                    left: 10px;
+                    right: 10px;
+                    width: calc(100% - 5px);
+                    z-index: 10;
+                }
+                .chat-history-container {
+                    padding-bottom: 80px;  /* To ensure space for the fixed input box */
+                }
+            </style>
+        """, unsafe_allow_html=True)
 
         if st.button("Submit Question"):
             if question:
@@ -142,6 +206,13 @@ class HelperFunction:
 
     def display_chat_history(self, chat_history):
         st.subheader("Chat History")
+        # Wrap chat history in a scrollable container with fixed height
+        # st.markdown("""
+        #     <div style='height: 400px; overflow-y: scroll; padding-right: 10px;'>
+        #     <div id="chat-history">
+        # """, unsafe_allow_html=True)
+
+        # Display chat messages
         for user_msg, bot_msg in chat_history:
             st.markdown(f"""
             <div style='text-align: left; margin: 10px;'>
@@ -153,3 +224,5 @@ class HelperFunction:
                 <strong>{bot_msg}</strong></p>
             </div>
             """, unsafe_allow_html=True)
+
+        st.markdown("</div></div>", unsafe_allow_html=True)
