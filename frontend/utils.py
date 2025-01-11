@@ -46,26 +46,26 @@ class HelperFunction:
             </style>
             """
 
-    def display_pdf(self, file):
-        file.seek(0)  # Reset the file pointer to the beginning
-        pdf_document = fitz.open(stream=file.read(), filetype="pdf")
-        num_pages = pdf_document.page_count
-        st.write(f"Total pages: {num_pages}")
+    # def display_pdf(self, file):
+    #     file.seek(0)  # Reset the file pointer to the beginning
+    #     pdf_document = fitz.open(stream=file.read(), filetype="pdf")
+    #     num_pages = pdf_document.page_count
+    #     st.write(f"Total pages: {num_pages}")
 
-        for page_num in range(num_pages):
-            page = pdf_document.load_page(page_num)
-            pix = page.get_pixmap()
-            img = pix.tobytes("png")
-            st.image(img, caption=f"Page {page_num + 1}")
+    #     for page_num in range(num_pages):
+    #         page = pdf_document.load_page(page_num)
+    #         pix = page.get_pixmap()
+    #         img = pix.tobytes("png")
+    #         st.image(img, caption=f"Page {page_num + 1}")
 
-    def download_pdf(self, uploaded_file, key_suffix):
-        st.sidebar.download_button(
-            "Download PDF",
-            data=uploaded_file.read(),
-            file_name=uploaded_file.name,
-            mime="application/pdf",
-            key=f"download_button_{key_suffix}"
-        )
+    # def download_pdf(self, uploaded_file, key_suffix):
+    #     st.sidebar.download_button(
+    #         "Download PDF",
+    #         data=uploaded_file.read(),
+    #         file_name=uploaded_file.name,
+    #         mime="application/pdf",
+    #         key=f"download_button_{key_suffix}"
+    #     )
 
     def process_file(self, uploaded_file):
         # Upload PDF to extractor API
@@ -95,18 +95,73 @@ class HelperFunction:
     #         st.markdown(pdf_display, unsafe_allow_html=True)
         # self.download_pdf(uploaded_file, key_suffix="viewer")
 
+    def pdf_to_images(self, uploaded_file):
+        """Convert PDF pages to images."""
+        try:
+            uploaded_file.seek(0)
+            pdf_document = fitz.open(
+                stream=uploaded_file.read(), filetype="pdf")
+            pages = []
+            for page_num in range(len(pdf_document)):
+                page = pdf_document[page_num]
+                pix = page.get_pixmap()
+                img_data = pix.tobytes("png")
+                pages.append(img_data)
+            return pages
+        except Exception as e:
+            # Log error silently or handle it without displaying it to the user
+            return []
+
     def pdf_viewer(self, uploaded_file):
-        uploaded_file.seek(0)
+        """Display PDF with pagination."""
+        try:
+            # Ensure a file is uploaded
+            if uploaded_file:
+                # Convert PDF to images
+                pages = self.pdf_to_images(uploaded_file)
+                if not pages:  # If conversion fails or no pages, display info
+                    st.info(
+                        "There was an issue with the PDF file. Please try another.")
+                    return
 
-        base64_pdf = base64.b64encode(
-            uploaded_file.read()).decode('utf-8')
-        print("base64_pdf", base64_pdf)
-        # Embedding PDF in HTML
-        pdf_display = F'<iframe src="data:application/pdf;base64,{
-            base64_pdf}" width="700" height="1000" type="application/pdf">'
+                total_pages = len(pages)
 
-        # Displaying File
-        st.markdown(pdf_display, unsafe_allow_html=True)
+                # Initialize session state for page tracking
+                if "current_page" not in st.session_state:
+                    st.session_state.current_page = 0
+
+                # Unique identifier for the component
+                unique_id = str(uploaded_file.name) + str(total_pages)
+
+                # Display the current page
+                st.image(pages[st.session_state.current_page], caption=f"Page {
+                         st.session_state.current_page + 1} of {total_pages}")
+
+                # Navigation buttons with unique keys
+                col1, col2, col3 = st.columns([1, 1, 1])
+                with col1:
+                    if st.button("< Previous", key=f"prev_button_{unique_id}_{st.session_state.current_page}", disabled=st.session_state.current_page == 0):
+                        st.session_state.current_page -= 1
+                with col3:
+                    if st.button("Next >", key=f"next_button_{unique_id}_{st.session_state.current_page}", disabled=st.session_state.current_page == total_pages - 1):
+                        st.session_state.current_page += 1
+            else:
+                st.info("Upload a PDF file to view it here.")
+        except Exception as e:
+            # Handle any unexpected error gracefully without showing it to the user
+            pass
+
+    # def pdf_viewer(self, uploaded_file):
+    #     uploaded_file.seek(0)
+
+    #     base64_pdf = base64.b64encode(
+    #         uploaded_file.read()).decode('utf-8')
+    #     # Embedding PDF in HTML
+    #     pdf_display = F'<iframe src="data:application/pdf;base64,{
+    #         base64_pdf}" width="700" height="1000" type="application/pdf">'
+
+    #     # Displaying File
+    #     st.markdown(pdf_display, unsafe_allow_html=True)
 
     def qa_section_with_fixed_input(self):
         # Display chat history in the Q&A section

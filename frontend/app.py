@@ -1,37 +1,43 @@
 import streamlit as st
+import fitz  # PyMuPDF
 
-# Function to update the session state with new messages
+def pdf_to_images(uploaded_file):
+    """Convert PDF pages to images."""
+    pdf_document = fitz.open(stream=uploaded_file.read(), filetype="pdf")
+    pages = []
+    for page_num in range(len(pdf_document)):
+        page = pdf_document[page_num]
+        pix = page.get_pixmap()
+        img_data = pix.tobytes("png")
+        pages.append(img_data)
+    return pages
 
+def display_pdf_with_pagination(uploaded_file):
+    """Display PDF with pagination."""
+    if uploaded_file is not None:
+        # Convert PDF to images
+        pages = pdf_to_images(uploaded_file)
+        total_pages = len(pages)
 
-def add_message():
-    if 'messages' not in st.session_state:
-        st.session_state['messages'] = []
-    st.session_state['messages'].append(st.session_state['input_text'])
-    st.session_state['input_text'] = ''
+        # Initialize session state for page tracking
+        if "current_page" not in st.session_state:
+            st.session_state.current_page = 0
 
+        # Display the current page
+        st.image(pages[st.session_state.current_page], caption=f"Page {st.session_state.current_page + 1} of {total_pages}")
 
-# Display the messages in a scrollable container at the top
-if 'messages' in st.session_state:
-    with st.container():
-        st.markdown("### Messages")
-        for msg in reversed(st.session_state['messages']):
-            st.write(msg)
+        # Navigation buttons
+        col1, col2, col3 = st.columns([1, 1, 1])
+        with col1:
+            if st.button("< Previous", disabled=st.session_state.current_page == 0):
+                st.session_state.current_page -= 1
+        with col3:
+            if st.button("Next >", disabled=st.session_state.current_page == total_pages - 1):
+                st.session_state.current_page += 1
+    else:
+        st.warning("Please upload a PDF file.")
 
-# Text box for user input
-with st.container():
-    st.text_input("Type your message here:",
-                  key='input_text', on_change=add_message)
-
-# Style to fix the position of the input text box at the bottom of the page
-st.markdown(
-    """
-    <style>
-    .stTextInput {
-        position: fixed;
-        bottom: 0;
-        width: 100%;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+# Streamlit App Code
+st.title("PDF Viewer with Pagination")
+uploaded_file = st.file_uploader("Upload a PDF file", type=["pdf"])
+display_pdf_with_pagination(uploaded_file)
