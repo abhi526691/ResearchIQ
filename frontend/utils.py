@@ -1,5 +1,4 @@
 import os
-import base64
 import fitz
 import requests
 import streamlit as st
@@ -46,27 +45,6 @@ class HelperFunction:
             </style>
             """
 
-    # def display_pdf(self, file):
-    #     file.seek(0)  # Reset the file pointer to the beginning
-    #     pdf_document = fitz.open(stream=file.read(), filetype="pdf")
-    #     num_pages = pdf_document.page_count
-    #     st.write(f"Total pages: {num_pages}")
-
-    #     for page_num in range(num_pages):
-    #         page = pdf_document.load_page(page_num)
-    #         pix = page.get_pixmap()
-    #         img = pix.tobytes("png")
-    #         st.image(img, caption=f"Page {page_num + 1}")
-
-    # def download_pdf(self, uploaded_file, key_suffix):
-    #     st.sidebar.download_button(
-    #         "Download PDF",
-    #         data=uploaded_file.read(),
-    #         file_name=uploaded_file.name,
-    #         mime="application/pdf",
-    #         key=f"download_button_{key_suffix}"
-    #     )
-
     def process_file(self, uploaded_file):
         # Upload PDF to extractor API
         with st.spinner("Processing the PDF..."):
@@ -83,17 +61,6 @@ class HelperFunction:
         else:
             st.error("Failed to process the PDF.")
             return False
-
-    # def pdf_viewer(self, uploaded_file):
-    #     # self.display_pdf(uploaded_file)
-    #     # def pdf_viewer(self, uploaded_file):
-    #     if uploaded_file:
-    #         # Display the PDF using an iframe
-    #         base64_pdf = base64.b64encode(uploaded_file.read()).decode('utf-8')
-    #         pdf_display = f'<iframe src="data:application/pdf;base64,{
-    #             base64_pdf}" width="700" height="1000" type="application/pdf"></iframe>'
-    #         st.markdown(pdf_display, unsafe_allow_html=True)
-        # self.download_pdf(uploaded_file, key_suffix="viewer")
 
     def pdf_to_images(self, uploaded_file):
         """Convert PDF pages to images."""
@@ -134,8 +101,9 @@ class HelperFunction:
                 unique_id = str(uploaded_file.name) + str(total_pages)
 
                 # Display the current page
-                st.image(pages[st.session_state.current_page], caption=f"Page {
-                         st.session_state.current_page + 1} of {total_pages}")
+                caption = f"Page {
+                    st.session_state.current_page + 1} of {total_pages}"
+                st.image(pages[st.session_state.current_page], caption=caption)
 
                 # Navigation buttons with unique keys
                 col1, col2, col3 = st.columns([1, 1, 1])
@@ -150,18 +118,6 @@ class HelperFunction:
         except Exception as e:
             # Handle any unexpected error gracefully without showing it to the user
             pass
-
-    # def pdf_viewer(self, uploaded_file):
-    #     uploaded_file.seek(0)
-
-    #     base64_pdf = base64.b64encode(
-    #         uploaded_file.read()).decode('utf-8')
-    #     # Embedding PDF in HTML
-    #     pdf_display = F'<iframe src="data:application/pdf;base64,{
-    #         base64_pdf}" width="700" height="1000" type="application/pdf">'
-
-    #     # Displaying File
-    #     st.markdown(pdf_display, unsafe_allow_html=True)
 
     def qa_section_with_fixed_input(self):
         # Display chat history in the Q&A section
@@ -261,11 +217,6 @@ class HelperFunction:
 
     def display_chat_history(self, chat_history):
         st.subheader("Chat History")
-        # Wrap chat history in a scrollable container with fixed height
-        # st.markdown("""
-        #     <div style='height: 400px; overflow-y: scroll; padding-right: 10px;'>
-        #     <div id="chat-history">
-        # """, unsafe_allow_html=True)
 
         # Display chat messages
         for user_msg, bot_msg in chat_history:

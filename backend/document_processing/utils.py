@@ -18,6 +18,13 @@ from adobe.pdfservices.operation.pdfjobs.params.extract_pdf.extract_element_type
 from adobe.pdfservices.operation.pdfjobs.params.extract_pdf.extract_pdf_params import ExtractPDFParams
 from adobe.pdfservices.operation.pdfjobs.result.extract_pdf_result import ExtractPDFResult
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
+PDF_SERVICE_CLIENT_ID = os.environ.get("PDF_SERVICE_CLIENT_ID")
+PDF_SERVICES_CLIENT_SECRET = os.environ.get("PDF_SERVICES_CLIENT_SECRET")
+ORGANIZATION_ID = os.environ.get("ORGANIZATION_ID")
 
 class AdobeFunc:
     """
@@ -29,8 +36,8 @@ class AdobeFunc:
         Initialize AdobeFunc with Service Principal Credentials.
         """
         self.credentials = ServicePrincipalCredentials(
-            client_id="b2d53a9ebdf3457c9935331406ea1dea",
-            client_secret="p8e--ujIBIaRR663vvekvOGUYxUp2-f0zeKn"
+            client_id=PDF_SERVICE_CLIENT_ID,
+            client_secret=PDF_SERVICES_CLIENT_SECRET
         )
 
     def adobe_process(self, file):

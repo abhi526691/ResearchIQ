@@ -92,10 +92,7 @@ class VectorEmbeddings:
             output_data[content_uid] = [
                 {"content": content, "embedding": embedding}
             ]
-            print(f"Stored {content_uid} with content: {content}")
 
-        print(f"Embeddings created and stored for document UID: {
-              file_hash}")
         return output_data
 
     def retrieve_data(self, file_hash, collection_name="researchIQ"):
@@ -109,8 +106,6 @@ class VectorEmbeddings:
         )
 
         if results and results["ids"]:  # If data exists, return it
-            print(f"Document with UID: {
-                  file_hash} already exists. Returning existing data...")
             for idx, doc_id in enumerate(results["ids"]):
                 print(f"UID: {doc_id}")
                 print(f"Content: {results['documents'][idx]}")
@@ -149,8 +144,6 @@ class QnaHelper(VectorEmbeddings):
         )
 
         if results and results["ids"]:  # If data exists, rank and return top_k
-            print(f"Document with UID: {file_hash} found. Returning top {
-                  top_k} associated data...")
 
             # Combine embeddings and documents to calculate relevance scores
             question_emb = self.question_embedding(question)

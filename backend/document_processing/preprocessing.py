@@ -21,7 +21,12 @@ class Preprocessing:
     """
 
     def __init__(self):
-        pass
+        # Download necessary NLTK data
+        nltk.download("punkt")
+        nltk.download("punkt_tab")  # Ensure punkt_tab is downloaded
+        nltk.download("wordnet")
+        nltk.download("stopwords")
+        nltk.download("averaged_perceptron_tagger")
 
     def convert_abbrev(self, word):
         final_word = []
@@ -38,7 +43,6 @@ class Preprocessing:
         html_pattern = re.compile('<.*?>')
         return html_pattern.sub(r'', text)
 
-
     def lemmatize_text_nltk(self, text):
         lemmatizer = WordNetLemmatizer()
         words = nltk.word_tokenize(text)  # Tokenize the text
@@ -52,7 +56,6 @@ class Preprocessing:
         filtered_words = [
             word for word in words if word.lower() not in stop_words]
         return ' '.join(filtered_words)
-
 
     def handle_emoji(self, text):
         # Handling Emoji's
