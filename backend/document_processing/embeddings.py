@@ -1,3 +1,4 @@
+import tiktoken
 import hashlib
 import os
 import chromadb
@@ -90,7 +91,7 @@ class VectorEmbeddings:
             )
 
             output_data[content_uid] = [
-                {"content": content, "embedding": embedding}
+                {"key": key, "value": value, "embedding": embedding}
             ]
 
         return output_data
@@ -108,9 +109,9 @@ class VectorEmbeddings:
         if results and results["ids"]:  # If data exists, return it
             for idx, doc_id in enumerate(results["ids"]):
                 print(f"UID: {doc_id}")
-                print(f"Content: {results['documents'][idx]}")
-                print(f"Metadata: {results['metadatas'][idx]}")
-                print("-" * 40)
+                # print(f"Content: {results['documents'][idx]}")
+                # print(f"Metadata: {results['metadatas'][idx]}")
+                # print("-" * 40)
             results["document_uid"] = file_hash
             return results  # Return all associated entries
         else:
@@ -125,6 +126,20 @@ class QnaHelper(VectorEmbeddings):
         self.LLAMA3_70B_INSTRUCT = "llama-3.1-70b-versatile"
         self.LLAMA3_8B_INSTRUCT = "llama3.1-8b-instant"
         self.DEFAULT_MODEL = self.LLAMA3_70B_INSTRUCT
+        self.max_token = 5000
+
+
+# Load the tokenizer for your model
+
+
+    def truncate_to_fit(self, content):
+        """
+        Limit for llama 70b is 6000 token 
+        1 token = 4 word
+        """
+        if len(content) > 20000:
+            return content[:20000]
+        return content
 
     def question_embedding(self, question):
         """Generate embedding for the given question."""
@@ -175,7 +190,7 @@ class QnaHelper(VectorEmbeddings):
         if not data:
             return None
 
-        prompt = data["prompt"]
+        prompt = self.truncate_to_fit(data["prompt"])
         scored_result = data["scored_results"]
         top_document = data["top_document"]
 
@@ -194,6 +209,7 @@ class QnaHelper(VectorEmbeddings):
                 model=self.DEFAULT_MODEL,
                 temperature=0.6,
                 top_p=0.9,
+                max_tokens=4096
             )
 
             return {
@@ -237,6 +253,9 @@ class summmarizerHelper(QnaHelper):
             where={"document_uid": self.document_uid},
             include=["documents", "metadatas", "embeddings"]
         )
+        # return results
+        # return results["metadatas"]
+        # results["documents"],
         return " ".join(results["documents"])
 
     def generate_response(self):
@@ -253,6 +272,11 @@ class summmarizerHelper(QnaHelper):
 
         ### Summary:
         """
+
+        # return {
+        #     'output': 'abcd',
+        #     'prompt': prompt,
+        # }
         try:
             response = self.llm.chat.completions.create(
                 messages=[{"role": "user", "content": combined_prompt}],

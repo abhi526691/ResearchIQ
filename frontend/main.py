@@ -1,6 +1,6 @@
 import streamlit as st
 
-from .utils import HelperFunction
+from utils import HelperFunction
 
 
 class UI(HelperFunction):
