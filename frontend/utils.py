@@ -204,12 +204,11 @@ class HelperFunction:
                                     "content": i["key"] + " " + i["value"]})
                                 if title_summary.status_code == 200:
                                     st.write(
-                                        title_summary.json().get("output")["output"])
+                                        f"**{title_summary.json().get('output')['output']}**")
 
             # st.session_state.chat_history = []
 
     def document_summary(self):
-        st.subheader("Document Summary")
         if st.session_state.document_uid:
             st.subheader("Generate Summary")
             if st.button("Generate Summary"):

@@ -341,8 +341,6 @@ class summmarizerHelper(QnaHelper):
             try:
                 return self.llm_response(combined_prompt)
             except Exception as e:
-                print("sleeping for 60 seconds")
-                time.sleep(60)
                 return self.llm_response(combined_prompt)
         return {
             'output': summary_prompt
