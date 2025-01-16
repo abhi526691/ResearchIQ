@@ -1,0 +1,11 @@
+base_url = "http://127.0.0.1:8000" ## In localhost it is 
+EXTRACTOR_API_URL = "{base_url}/document_processing/file/"
+QNA_API_URL = "{base_url}/document_processing/qna/"
+SUMMARIZER_API_URL = "{base_url}/document_processing/summary/"
+SUMMARIZER_API_HEADING_URL = "{base_url}/document_processing/summary/heading/"
+SUMMARIZER_API_TITLE_URL = "{base_url}/document_processing/summary/title/"
+PDF_SERVICE_CLIENT_ID = "<client-id>"
+PDF_SERVICES_CLIENT_SECRET = "<client-secret>"
+ORGANIZATION_ID = "<organization-id>"
+GROQ_API_KEY = "<groq-api-key>"
+
