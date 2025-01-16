@@ -56,6 +56,7 @@ class UI(HelperFunction):
                     self.pdf_viewer(uploaded_file)
                 with summary:
                     # Display chat history for summarizer
+                    # self.summary_heading()
                     self.summary_helper()
 
     def main(self):

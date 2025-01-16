@@ -10,6 +10,8 @@ load_dotenv()
 EXTRACTOR_API_URL = os.environ.get("EXTRACTOR_API_URL")
 QNA_API_URL = os.environ.get("QNA_API_URL")
 SUMMARIZER_API_URL = os.environ.get("SUMMARIZER_API_URL")
+SUMMARIZER_API_HEADING_URL = os.environ.get("SUMMARIZER_API_HEADING_URL")
+SUMMARIZER_API_TITLE_URL = os.environ.get("SUMMARIZER_API_TITLE_URL")
 
 
 class HelperFunction:
@@ -103,7 +105,8 @@ class HelperFunction:
                 # Display the current page
                 caption = f"Page {
                     st.session_state.current_page + 1} of {total_pages}"
-                st.image(pages[st.session_state.current_page], caption=caption)
+                st.image(pages[st.session_state.current_page],
+                         caption=caption, use_container_width=True)
 
                 # Navigation buttons with unique keys
                 col1, col2, col3 = st.columns([1, 1, 1])
@@ -184,10 +187,31 @@ class HelperFunction:
             else:
                 st.warning("Please enter a question.")
 
-    def summary_helper(self):
-        st.subheader("Generate Summary")
+    def title_summary(self):
+        st.subheader("TitleWise Summary")
         if st.session_state.document_uid:
-            # st.write(f"Document ID: {st.session_state.document_uid}")
+            # Fetch headings first
+            heading_response = requests.post(SUMMARIZER_API_HEADING_URL, data={
+                "document_uid": st.session_state.document_uid})
+            if heading_response.status_code == 200:
+                summary = heading_response.json().get("output")
+                for i in summary:
+                    if len(i['value']) != 0:
+                        with st.expander(i["key"]):
+                            # Use a button to trigger the title API call
+                            if st.button(f"Summarize {i['key']}", key=f"btn_{i['key']}"):
+                                title_summary = requests.post(SUMMARIZER_API_TITLE_URL, data={
+                                    "content": i["key"] + " " + i["value"]})
+                                if title_summary.status_code == 200:
+                                    st.write(
+                                        title_summary.json().get("output")["output"])
+
+            # st.session_state.chat_history = []
+
+    def document_summary(self):
+        st.subheader("Document Summary")
+        if st.session_state.document_uid:
+            st.subheader("Generate Summary")
             if st.button("Generate Summary"):
                 with st.spinner("Generating summary..."):
                     summary_response = requests.post(SUMMARIZER_API_URL, data={
@@ -202,6 +226,13 @@ class HelperFunction:
                     st.error("Failed to generate summary.")
         else:
             st.warning("Please upload a PDF file to generate the summary.")
+
+    def summary_helper(self):
+        title, document = st.tabs(["TitleWise", "DocumentWise"])
+        with title:
+            self.title_summary()
+        with document:
+            self.document_summary()
 
     def display_summary_chat(self, summary):
         st.markdown(f"""

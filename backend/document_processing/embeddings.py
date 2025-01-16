@@ -1,4 +1,4 @@
-import tiktoken
+import time
 import hashlib
 import os
 import chromadb
@@ -121,16 +121,12 @@ class VectorEmbeddings:
 class QnaHelper(VectorEmbeddings):
     def __init__(self):
         super().__init__()
-        os.environ["GROQ_API_KEY"] = "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"
+        os.environ["GROQ_API_KEY"] = os.environ.get("GROQ_API_KEY")
         self.llm = Groq()
         self.LLAMA3_70B_INSTRUCT = "llama-3.1-70b-versatile"
         self.LLAMA3_8B_INSTRUCT = "llama3.1-8b-instant"
         self.DEFAULT_MODEL = self.LLAMA3_70B_INSTRUCT
         self.max_token = 5000
-
-
-# Load the tokenizer for your model
-
 
     def truncate_to_fit(self, content):
         """
@@ -239,7 +235,8 @@ class QnaHelper(VectorEmbeddings):
 
 
 class summmarizerHelper(QnaHelper):
-    def __init__(self, document_uid):
+
+    def __init__(self, document_uid=""):
         super().__init__()
         self.document_uid = document_uid
 
@@ -253,14 +250,62 @@ class summmarizerHelper(QnaHelper):
             where={"document_uid": self.document_uid},
             include=["documents", "metadatas", "embeddings"]
         )
-        # return results
-        # return results["metadatas"]
-        # results["documents"],
-        return " ".join(results["documents"])
+        return results["metadatas"]
 
-    def generate_response(self):
+    def retrieve_all_heading(self, collection_name="researchIQ"):
+        """Retrieve top_k relevant data based on the file_hash and return query and prompt as a dictionary."""
+        # Load or create collection
+        collection = self.client.get_or_create_collection(name=collection_name)
 
+        # Fetch all entries matching the document UID
+        results = collection.get(
+            where={"document_uid": self.document_uid},
+            include=["documents", "metadatas", "embeddings"]
+        )
+        return results["metadatas"]
+
+    def check_token_size(self, next_output):
+        if len(next_output) > 15000:
+            return True
+        return False
+
+    def token_wise_summary(self):
+        summary_prompt = ""
         prompt = self.retrieve_data()
+        output, next_output = "", ""
+        cnt = 0
+        for i in prompt:
+            output = next_output
+            next_output += i['key'] + " " + i['value'] + " "
+            if self.check_token_size(next_output):
+                summary_prompt += self.generate_response(output)[
+                    "output"] + " "
+                print("summary_prompt", summary_prompt)
+                output = ""
+                cnt += 1
+
+        summary_prompt += self.generate_response(output)["output"] + " "
+        return cnt, summary_prompt
+
+    def llm_response(self, combined_prompt):
+        if len(combined_prompt) > 20000:
+            combined_prompt = combined_prompt[:20000]
+        response = self.llm.chat.completions.create(
+            messages=[{"role": "user", "content": combined_prompt}],
+            model=self.DEFAULT_MODEL,
+            temperature=0.8,
+            top_p=0.9,
+        )
+
+        return {
+            'output': response.choices[0].message.content,
+            'prompt': combined_prompt,
+        }
+
+    def generate_response(self, prompt=""):
+        if prompt == "":
+            prompt = self.retrieve_data()
+
         combined_prompt = f"""
         You are an AI assistant specialized in creating concise and accurate summaries based exclusively on
         the provided documents. Do not use any external information or personal knowledge beyond what is given below.
@@ -272,23 +317,33 @@ class summmarizerHelper(QnaHelper):
 
         ### Summary:
         """
-
-        # return {
-        #     'output': 'abcd',
-        #     'prompt': prompt,
-        # }
         try:
-            response = self.llm.chat.completions.create(
-                messages=[{"role": "user", "content": combined_prompt}],
-                model=self.DEFAULT_MODEL,
-                temperature=0.8,
-                top_p=0.9,
-            )
-
-            return {
-                'output': response.choices[0].message.content,
-                'prompt': prompt,
-            }
+            return self.llm_response(combined_prompt)
         except Exception as e:
-            print(f"Error generating response: {e}")
-            return None
+            print("sleeping for 60 seconds")
+            time.sleep(60)
+            return self.llm_response(combined_prompt)
+
+    def document_summary(self):
+        cnt, summary_prompt = self.token_wise_summary()
+        if cnt > 0:
+            combined_prompt = f"""
+            You are an AI assistant specialized in creating concise and accurate summaries based exclusively on
+            the provided documents. Do not use any external information or personal knowledge beyond what is given below.
+            {summary_prompt}
+            ### Task:
+            Please provide a comprehensive summary of the above documents.
+            Ensure that the summary captures all key points, main ideas, and essential details without introducing any information not present in the documents.
+            Strictly limit the summary to 2-3 paragraph depending on the prompt.
+
+            ### Summary:
+            """
+            try:
+                return self.llm_response(combined_prompt)
+            except Exception as e:
+                print("sleeping for 60 seconds")
+                time.sleep(60)
+                return self.llm_response(combined_prompt)
+        return {
+            'output': summary_prompt
+        }

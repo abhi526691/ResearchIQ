@@ -22,7 +22,6 @@ class InformationExtractor(APIView):
                 'error': 'Uploaded file is not a PDF.'
             })
 
-
 class QnAView(APIView):
     def post(self, request):
         document_uid = request.POST['document_uid']
@@ -35,11 +34,26 @@ class QnAView(APIView):
             'output': output
         })
 
+class SummarizerHeadingView(APIView):
+    def post(self, request):
+        document_uid = request.POST['document_uid']
+        key_value_pair = summmarizerHelper(document_uid).retrieve_all_heading()
+        return Response({
+            "output" : key_value_pair
+        })
 
+class TitleWiseSummary(APIView):
+    def post(self, request):
+        content = request.POST['content']
+        title_summary = summmarizerHelper().generate_response(content)
+        return Response({
+            "output" : title_summary
+        })
+    
 class SummarizerView(APIView):
     def post(self, request):
         document_uid = request.POST['document_uid']
-        output = summmarizerHelper(document_uid).generate_response()
+        output = summmarizerHelper(document_uid).document_summary()
         return Response({
             'output': output
         })

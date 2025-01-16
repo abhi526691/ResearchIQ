@@ -18,6 +18,8 @@ class Preprocessing:
     - Handling Pronouns and Special Characters
     - Tokenize
     - Lowercase and En-grams
+    - Remove Special Character
+    - Remove Extra WhiteSpaces
     """
 
     def __init__(self):
@@ -27,6 +29,22 @@ class Preprocessing:
         nltk.download("wordnet")
         nltk.download("stopwords")
         nltk.download("averaged_perceptron_tagger")
+
+    def clean_string(self, input_string):
+        """
+        Removes special characters and extra whitespaces from the input string.
+
+        Args:
+            input_string (str): The string to process.
+
+        Returns:
+            str: The cleaned string without special characters or extra whitespaces.
+        """
+        # Remove special characters
+        cleaned_string = re.sub(r'[^A-Za-z0-9\s]', '', input_string)
+        # Remove extra whitespaces by splitting and rejoining
+        cleaned_string = re.sub(r'\s+', ' ', cleaned_string).strip()
+        return cleaned_string
 
     def convert_abbrev(self, word):
         final_word = []
