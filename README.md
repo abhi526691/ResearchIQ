@@ -30,11 +30,12 @@ Users can ask questions about the uploaded document. The process includes:
 - Using the Groq (Llama-70b) model to generate precise answers based on the top 5 matching data points.
 
 ### 3. Summarization
-- **Heading-wise Summarization:** Generate summaries for specific headings extracted from the document.
+- **Title-wise Summarization:** Generate summaries for specific headings extracted from the document.
 - **Whole Document Summarization:** Summarize the entire document. For large documents, content is split into 6000-token segments (approx. 24,000 words per call) due to the Groq model's max token limit.
 
+
 ## Tech Stack
-- **Backend:** Django
+- **Backend:** Django or FastAPI(For Speed)
 - **Frontend:** Streamlit
 - **Vector Database:** ChromaDB
 - **Language Model:** Groq (Llama-70b)
